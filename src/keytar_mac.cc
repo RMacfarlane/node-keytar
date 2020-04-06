@@ -1,7 +1,7 @@
 #include <Security/Security.h>
 #include "keytar.h"
 #include "credentials.h"
-
+#include <semaphore.h>
 
 namespace keytar {
 
@@ -79,6 +79,21 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
                              const std::string& account,
                              const std::string& password,
                              std::string* error) {
+  unsigned int initial_value = 1;
+  sem_t *shared_write_sem = sem_open("keytar_write_semaphore",
+                                    O_CREAT,
+                                    0,
+                                    initial_value);
+  if (shared_write_sem == SEM_FAILED) {
+    *error = "Failed to acquire lock.";
+    return FAIL_ERROR;
+  }
+
+  if (sem_wait(shared_write_sem) < 0) {
+    *error = "Waiting for lock failed.";
+    return FAIL_ERROR;;
+  }
+
   SecKeychainItemRef item;
   OSStatus result = SecKeychainFindGenericPassword(NULL,
                                                    service.length(),
@@ -90,8 +105,11 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
                                                    &item);
 
   if (result == errSecItemNotFound) {
-    return AddPassword(service, account, password, error);
+    KEYTAR_OP_RESULT addResult = AddPassword(service, account, password, error);
+    sem_post(shared_write_sem);
+    return addResult;
   } else if (result != errSecSuccess) {
+    sem_post(shared_write_sem);
     *error = errorStatusToString(result);
     return FAIL_ERROR;
   }
@@ -102,10 +120,12 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
                                                   password.data());
   CFRelease(item);
   if (result != errSecSuccess) {
+    sem_post(shared_write_sem);
     *error = errorStatusToString(result);
     return FAIL_ERROR;
   }
 
+  sem_post(shared_write_sem);
   return SUCCESS;
 }
 
