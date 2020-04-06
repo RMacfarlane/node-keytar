@@ -84,6 +84,8 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
                                     O_CREAT,
                                     0,
                                     initial_value);
+  printf("Test\n");
+
   if (shared_write_sem == SEM_FAILED) {
     *error = "Failed to acquire lock.";
     return FAIL_ERROR;
