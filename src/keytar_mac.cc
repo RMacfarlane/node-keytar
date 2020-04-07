@@ -85,6 +85,7 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
                                      O_CREAT,
                                      0644,
                                      initial_value);
+  sem_unlink("keytar_write");
   printf("Acquiring lock\n");
 
   if (shared_write_sem == SEM_FAILED) {
