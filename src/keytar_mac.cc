@@ -2,6 +2,7 @@
 #include "keytar.h"
 #include "credentials.h"
 #include <semaphore.h>
+#include <errno.h>
 
 namespace keytar {
 
@@ -80,14 +81,26 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
                              const std::string& password,
                              std::string* error) {
   unsigned int initial_value = 1;
-  sem_t *shared_write_sem = sem_open("keytar_write_semaphore",
-                                    O_CREAT,
-                                    0,
-                                    initial_value);
-  printf("Test\n");
+  sem_t *shared_write_sem = sem_open("keytar_write",
+                                     O_CREAT,
+                                     0644,
+                                     initial_value);
+  printf("Acquiring lock\n");
 
   if (shared_write_sem == SEM_FAILED) {
-    *error = "Failed to acquire lock.";
+    int err = errno;
+    if (err == EACCES) {
+      *error = "The semaphore exists, but the caller does not have permission.";
+    } else if (err == EMFILE) {
+      *error = "Per-process limit on open file descriptors has been reached.";
+    } else if (err == ENFILE) {
+      *error = "The system-wide limit on open files has been reached.";
+    } else if (err == ENOMEM) {
+      *error = "Insufficient memory.";
+    } else {
+      *error = "Failed to acquire lock.";
+    }
+
     return FAIL_ERROR;
   }
 
@@ -95,6 +108,8 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
     *error = "Waiting for lock failed.";
     return FAIL_ERROR;;
   }
+
+  printf("Acquired lock\n");
 
   SecKeychainItemRef item;
   OSStatus result = SecKeychainFindGenericPassword(NULL,
@@ -108,6 +123,7 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
 
   if (result == errSecItemNotFound) {
     KEYTAR_OP_RESULT addResult = AddPassword(service, account, password, error);
+    printf("Add complete\n");
     sem_post(shared_write_sem);
     return addResult;
   } else if (result != errSecSuccess) {
@@ -127,6 +143,7 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
     return FAIL_ERROR;
   }
 
+  printf("Update complete\n");
   sem_post(shared_write_sem);
   return SUCCESS;
 }
