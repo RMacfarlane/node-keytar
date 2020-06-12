@@ -122,15 +122,9 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
     return FAIL_ERROR;
   }
 
-  LPWSTR user_name = utf8ToWideChar(account);
-  if (target_name == NULL) {
-    return FAIL_ERROR;
-  }
-
   CREDENTIAL cred = { 0 };
   cred.Type = CRED_TYPE_GENERIC;
   cred.TargetName = target_name;
-  cred.UserName = user_name;
   cred.CredentialBlobSize = password.size();
   cred.CredentialBlob = (LPBYTE)(password.data());
   cred.Persist = CRED_PERSIST_ENTERPRISE;
