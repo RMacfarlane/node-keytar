@@ -49,3 +49,10 @@ export declare function findPassword(service: string): Promise<string | null>;
  * @returns A promise for the array of found credentials.
  */
 export declare function findCredentials(service: string): Promise<Array<{ account: string, password: string}>>;
+
+/**
+ * Register a function to be called when setPassword is called
+ * 
+ * @param callback A function to be called when setPassword is called
+ */
+export declare function onPasswordSet(callback: (service: string, account: string) => void): void;
